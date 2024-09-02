@@ -53,7 +53,10 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-#define APP_START_ADDR     0x08008000U
+#define APP_START_ADDR           0x08008000U
+#define DL_SLOT_0_START_ADDR     0x08010000U
+#define CONFIG_START_ADDRESS     0x0802FF80U   // last page of sector 47
+
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
@@ -73,6 +76,11 @@ void Error_Handler(void);
 /* USER CODE BEGIN Private defines */
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart1;
+
+
+
+uint32_t calculate_crc32(uint8_t *buf, uint32_t len);
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

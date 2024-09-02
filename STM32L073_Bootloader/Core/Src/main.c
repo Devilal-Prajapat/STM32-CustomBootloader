@@ -17,11 +17,15 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
 #include "debug.h"
+#include "string.h"
+#include <ota_update.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,11 +45,14 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+CRC_HandleTypeDef hcrc;
+
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-
+ota_config_t *ota_config  = (ota_config_t *)CONFIG_START_ADDRESS;
+ota_config_t ota_config_temp = {0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -53,13 +60,16 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_CRC_Init(void);
 /* USER CODE BEGIN PFP */
 void jump_to_app(void);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+char log_buff[32];
+static const char *TAG = "BL";
 /* USER CODE END 0 */
 
 /**
@@ -92,11 +102,18 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_USART1_UART_Init();
+  MX_CRC_Init();
   /* USER CODE BEGIN 2 */
-  DEBUG_LOG("BL","v0.0");
+  DEBUG_LOG("BL","Bootloader v0.5");
   DEBUG_LOG("BL","Press user button for firmware upgrade");
   uint8_t btn_state = HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin);
   uint32_t last_tick = HAL_GetTick();
+
+  memcpy(&ota_config_temp, ota_config, sizeof(ota_config_t));
+
+  //Erasse_Flash(ERASE_CONFIG_AREA);
+  //write_to_config_flash(&ota_config_temp);
+
   while((HAL_GetTick()-last_tick) < 3000)
   {
 	  btn_state = HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin);
@@ -114,17 +131,38 @@ int main(void)
   {
 	  // UART Reception
 	  DEBUG_LOG("BL","Process");
-	  if(0)
-//	  if(download_and_upgrade_fw()!= 0)
+	  if(download_and_upgrade_fw()!= 0)
 	  {
-		  DEBUG_LOG("BL","FW Upgrade Failed");
-		  while(1);
+		  DEBUG_LOG("BL","FW Upgrade Failed , System will reset in 2 seconds");
+
+	  }else{
+		  DEBUG_LOG("BL","FW Upgrade Success, System will reset in 2 seconds");
 	  }
-	  DEBUG_LOG("BL","FW Upgrade Success, System will reset in 2 seconds");
 	  HAL_Delay(2000);
 	  HAL_NVIC_SystemReset();
   }
-  jump_to_app();
+  memcpy(&ota_config_temp, ota_config, sizeof(ota_config_t)); // Re-verify
+  if(ota_config_temp.flag == 1 )
+  {
+	  load_new_app(DL_SLOT_0_START_ADDR, ota_config_temp.dl_size);
+	  ota_config_temp.flag = 0;
+	  ota_config_temp.fw_crc = ota_config_temp.dl_crc;
+	  ota_config_temp.fw_size = ota_config_temp.dl_size;
+	  Erasse_Flash(ERASE_CONFIG_AREA);
+	  write_to_config_flash(&ota_config_temp);
+	  DEBUG_LOG("BL","New Firmware load Success");
+  }
+
+ // app area crc check
+   uint32_t app_crc = calculate_crc32((uint32_t*) APP_START_ADDR,ota_config_temp.fw_size);
+   if(app_crc == ota_config_temp.fw_crc)
+   {
+	   DEBUG_LOG("BL","Application OK");
+	   jump_to_app();
+   }else
+   {
+	   DEBUG_LOG("BL","Application Verification Failed");
+   }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -184,6 +222,37 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief CRC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_CRC_Init(void)
+{
+
+  /* USER CODE BEGIN CRC_Init 0 */
+
+  /* USER CODE END CRC_Init 0 */
+
+  /* USER CODE BEGIN CRC_Init 1 */
+
+  /* USER CODE END CRC_Init 1 */
+  hcrc.Instance = CRC;
+  hcrc.Init.DefaultPolynomialUse = DEFAULT_POLYNOMIAL_ENABLE;
+  hcrc.Init.DefaultInitValueUse = DEFAULT_INIT_VALUE_ENABLE;
+  hcrc.Init.InputDataInversionMode = CRC_INPUTDATA_INVERSION_NONE;
+  hcrc.Init.OutputDataInversionMode = CRC_OUTPUTDATA_INVERSION_DISABLE;
+  hcrc.InputDataFormat = CRC_INPUTDATA_FORMAT_WORDS;
+  if (HAL_CRC_Init(&hcrc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN CRC_Init 2 */
+
+  /* USER CODE END CRC_Init 2 */
+
 }
 
 /**
@@ -308,6 +377,43 @@ void jump_to_app(void)
 	app_reset_handler = (void *)reset_handler_address;
 	app_reset_handler();
 }
+#if 0
+uint32_t calculate_crc32(uint8_t *buf, uint32_t len)
+{
+    uint32_t POLYNOMIAL = 0x04C11DB7;
+    uint32_t crc = 0xFFFFFFFF;
+
+    for(uint32_t i = 0;i< len; i++)
+    {
+        crc ^= buf[i];
+        for(uint8_t j = 0; j<8; j++)
+        {
+            if(crc & 0x01)
+                crc = (crc >> 1) ^POLYNOMIAL;
+            else
+                crc = crc >> 1;
+        }
+   }
+	sprintf(log_buff,"crc: 0x%x",crc);
+	DEBUG_LOG(TAG, log_buff);
+	return (crc);
+}
+#else
+
+uint32_t calculate_crc32(uint8_t *pbuff, uint32_t len)
+{
+	uint32_t crc = 0xFF;
+	__HAL_CRC_DR_RESET(&hcrc);
+	for(uint32_t i = 0; i < len; i++)
+	{
+		uint32_t data = pbuff[i];
+		crc = HAL_CRC_Accumulate(&hcrc, &data, 1);
+	}
+	sprintf(log_buff,"crc: 0x%lx",crc);
+	DEBUG_LOG(TAG, log_buff);
+	return crc;
+}
+#endif
 /* USER CODE END 4 */
 
 /**

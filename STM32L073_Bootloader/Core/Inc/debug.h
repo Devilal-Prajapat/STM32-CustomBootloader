@@ -22,9 +22,9 @@
 //#define DEBUG_LOG(...)  printf(__VA_ARGS__)
 #define DEBUG_LOG(tag, msg)  do{\
 						send_log("\r\n[ ");\
-						send_log(tag);\
+						send_log((char *)tag);\
 						send_log(" ] : ");\
-						send_log(msg);\
+						send_log((char *)msg);\
 						}while(0);
 #else
 #define DEBUG_LOG(msg)

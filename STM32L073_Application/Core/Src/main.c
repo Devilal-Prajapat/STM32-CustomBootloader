@@ -89,7 +89,7 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  DEBUG_LOG("APP","Hello From STM32 App v0.0");
+  DEBUG_LOG(TAG,"Hello From STM32 App v0.5");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -99,7 +99,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  DEBUG_LOG("APP","Hello From STM32 App");
+	  DEBUG_LOG(TAG,"Hello From STM32 App");
 	  HAL_Delay(1000);
 	  HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
   }
