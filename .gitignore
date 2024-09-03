@@ -1,3 +1,4 @@
 STM32L073_Application/Debug/*
 STM32L073_Bootloader/Debug/*
+STM32L073_Sim800C/Debug/*
 *.obj
